@@ -1,8 +1,11 @@
 use std::fs::read_to_string;
 use std::io::Error;
 
+use super::line::Line;
+
+#[derive(Default)]
 pub struct Buffer {
-    pub lines: Vec<String>,
+    pub lines: Vec<Line>,
 }
 
 impl Buffer {
@@ -10,31 +13,13 @@ impl Buffer {
         let contents = read_to_string(file_name)?;
         let mut lines = Vec::new();
         for value in contents.lines() {
-            lines.push(String::from(value));
+            lines.push(Line::from(value));
         }
         Ok(Self { lines })
     }
+
     pub fn is_empty(&self) -> bool {
+        // Vec has a builtin is_empty
         self.lines.is_empty()
-    }
-
-    pub fn push_char(&mut self, character: char) {
-        let size = self.lines.len();
-
-        if let Some(current_line) = self.lines.get_mut(size - 1) {
-            current_line.push(character);
-        }
-    }
-
-    pub fn push_new_line(&mut self) {
-        self.lines.push(String::new());
-    }
-}
-
-impl Default for Buffer {
-    fn default() -> Self {
-        Self {
-            lines: vec!["".to_string()],
-        }
     }
 }
