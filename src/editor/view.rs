@@ -7,7 +7,9 @@ use std::io::Error;
 mod buffer;
 mod line;
 mod location;
+
 use buffer::Buffer;
+use line::Line;
 use location::Location;
 
 const NAME: &str = env!("CARGO_PKG_NAME");
@@ -35,6 +37,10 @@ impl View {
         self.needs_redraw = true;
     }
 
+    fn render_line(at: usize, line_text: &str) {
+        Terminal::print_row(at, line_text);
+    }
+
     pub fn render(&mut self) -> Result<(), Error> {
         if !self.needs_redraw {
             return Ok(());
@@ -45,19 +51,17 @@ impl View {
         }
         #[allow(clippy::integer_division)]
         let vertical_center = height / 3;
+        let top = self.scroll_offset.y;
 
         for current_row in 0..height {
-            if let Some(line) = self.buffer.lines.get(current_row) {
-                let truncated_line = if line.len() >= width {
-                    &line[0..width]
-                } else {
-                    line
-                };
-                Terminal::print_row(current_row, truncated_line);
+            if let Some(line) = self.buffer.lines.get(current_row.saturating_add(top)) {
+                let left = self.scroll_offset.x;
+                let right = self.scroll_offset.x.saturating_add(width);
+                Self::render_line(current_row, &line.get(left..right));
             } else if current_row == vertical_center && self.buffer.is_empty() {
-                Terminal::print_row(current_row, &Self::build_welcome_message(width));
+                Self::render_line(current_row, &Self::build_welcome_message(width));
             } else {
-                Terminal::print_row(current_row, "~");
+                Self::render_line(current_row, "~");
             }
         }
         self.needs_redraw = false;
@@ -65,18 +69,42 @@ impl View {
     }
 
     fn move_point(&mut self, direction: &Direction) {
-        let Location { x: mut x, y: mut y } = self.location;
-        let size = self.size;
+        let Location { mut x, mut y } = self.location;
+
+        let Size { height, .. } = self.size;
 
         match direction {
             Direction::Up => y = y.saturating_sub(1),
             Direction::Down => y = y.saturating_add(1),
-            Direction::Left => x = x.saturating_sub(1),
-            Direction::Right => x = x.saturating_add(1),
-            Direction::PageUp => y = y.saturating_sub(size.height),
-            Direction::PageDown => y = y.saturating_add(size.height),
+
+            Direction::Left => {
+                if x > 0 {
+                    x = x.saturating_sub(1)
+                } else if y > 0 {
+                    y -= 1;
+                    let line = self.buffer.lines.get(y);
+                    match line {
+                        Some(line) => x = line.len(),
+                        None => x = 0,
+                    }
+                }
+            }
+
+            Direction::Right => {
+                if let Some(line) = self.buffer.lines.get(y) {
+                    if x > line.len() {
+                        y = y.saturating_add(1);
+                        x = 0;
+                    } else {
+                        x = x.saturating_add(1);
+                    }
+                };
+            }
+
+            Direction::PageUp => y = y.saturating_sub(height - 1),
+            Direction::PageDown => y = y.saturating_add(height - 1),
             Direction::Home => x = 0,
-            Direction::End => x = size.width.saturating_sub(1),
+            Direction::End => x = self.buffer.lines.get(y).map_or(0, Line::len),
         }
         self.location = Location { x, y };
 
