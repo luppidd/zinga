@@ -19,26 +19,47 @@ pub struct View {
     buffer: Buffer,
     needs_redraw: bool,
     size: Size,
-    // The location of the cursor relative to the start of the document
     location: Location,
-    // The location of the screen relative to the start of the document
     scroll_offset: Location,
 }
 
+// Okay right now zinga works using single characters and dots for some graphemes. We've moved to
+// using grapheme clusters.
+//
+// One we need to make sure that everytime we move the character we move by the factor of one
+// grapheme. So at any point in time when we have a move command we need to fetch the existing
+// grapheme index. Use width until to get the width of the characters from index i to index k and
+// offset the caret by that width.
+//
 impl View {
     // Returns the position of the caret on the screen
     pub fn get_postion(&self) -> Position {
         self.location.subtract(&self.scroll_offset).into()
     }
 
+    fn render_line(at: usize, line_text: &str) {
+        Terminal::print_row(at, line_text);
+    }
+
+    pub fn handle_command(&mut self, command: EditorCommand) {
+        match command {
+            EditorCommand::Move(direction) => self.move_point(&direction),
+            EditorCommand::Resize(size) => self.resize(size),
+            EditorCommand::Quit => {}
+        }
+    }
+
+    pub fn load(&mut self, file_name: &str) {
+        if let Ok(buffer) = Buffer::load(file_name) {
+            self.buffer = buffer;
+            self.needs_redraw = true;
+        }
+    }
+
     pub fn resize(&mut self, to: Size) {
         self.size = to;
         self.scroll_view_location();
         self.needs_redraw = true;
-    }
-
-    fn render_line(at: usize, line_text: &str) {
-        Terminal::print_row(at, line_text);
     }
 
     pub fn render(&mut self) -> Result<(), Error> {
@@ -146,15 +167,6 @@ impl View {
 
         self.needs_redraw = offset_changed;
     }
-
-    pub fn handle_command(&mut self, command: EditorCommand) {
-        match command {
-            EditorCommand::Move(direction) => self.move_point(&direction),
-            EditorCommand::Resize(size) => self.resize(size),
-            EditorCommand::Quit => {}
-        }
-    }
-
     fn build_welcome_message(width: usize) -> String {
         if width == 0 {
             return " ".to_string();
@@ -172,13 +184,6 @@ impl View {
         let mut full_message = format!("~{}{}", " ".repeat(padding), welcome_message);
         full_message.truncate(width);
         full_message
-    }
-
-    pub fn load(&mut self, file_name: &str) {
-        if let Ok(buffer) = Buffer::load(file_name) {
-            self.buffer = buffer;
-            self.needs_redraw = true;
-        }
     }
 }
 

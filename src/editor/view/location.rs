@@ -2,15 +2,15 @@ use crate::editor::terminal::Position;
 
 #[derive(Default, Copy, Clone)]
 pub struct Location {
-    pub x: usize,
-    pub y: usize,
+    pub grapheme_index: usize,
+    pub line_index: usize,
 }
 
 impl From<Location> for Position {
     fn from(loc: Location) -> Self {
         Self {
-            col: loc.x,
-            row: loc.y,
+            col: loc.grapheme_index,
+            row: loc.line_index,
         }
     }
 }
@@ -18,8 +18,8 @@ impl From<Location> for Position {
 impl Location {
     pub const fn subtract(&self, other: &Self) -> Self {
         Self {
-            x: self.x.saturating_sub(other.x),
-            y: self.y.saturating_sub(other.y),
+            grapheme_index: self.grapheme_index.saturating_sub(other.grapheme_index),
+            line_index: self.line_index.saturating_sub(other.line_index),
         }
     }
 }
