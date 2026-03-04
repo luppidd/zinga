@@ -15,12 +15,27 @@ use location::Location;
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+#[derive(Default, Copy, Clone)]
+pub struct Location {
+    pub grapheme_index: usize,
+    pub line_index: usize,
+}
+
+impl Location {
+    pub const fn subtract(&self, other: &Self) -> Self {
+        Self {
+            grapheme_index: self.grapheme_index.saturating_sub(other.grapheme_index),
+            line_index: self.line_index.saturating_sub(other.line_index),
+        }
+    }
+}
+
 pub struct View {
     buffer: Buffer,
     needs_redraw: bool,
     size: Size,
     location: Location,
-    scroll_offset: Location,
+    scroll_offset: Position,
 }
 
 // Okay right now zinga works using single characters and dots for some graphemes. We've moved to
@@ -33,8 +48,11 @@ pub struct View {
 //
 impl View {
     // Returns the position of the caret on the screen
-    pub fn get_postion(&self) -> Position {
-        self.location.subtract(&self.scroll_offset).into()
+    // We have the location of the grapheme index. We need to get the width of 
+    // the characters from the line to the grapheme index
+    pub fn get_caret_position(&self) -> Position {
+        let row = self.location.
+
     }
 
     fn render_line(at: usize, line_text: &str) {
