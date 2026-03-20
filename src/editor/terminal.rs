@@ -56,6 +56,7 @@ impl Terminal {
         Self::queue_command(MoveTo(position.col as u16, position.row as u16));
         Ok(())
     }
+
     pub fn hide_caret() {
         Self::queue_command(Hide);
     }
@@ -75,20 +76,15 @@ impl Terminal {
     }
 
     pub fn print_row(row: usize, line_text: &str) {
-        Self::move_caret_to(Position { col: 0, row });
-        Self::clear_line();
+        let _ = Self::move_caret_to(Position { col: 0, row });
+        let _ = Self::clear_line();
         Self::print(line_text);
     }
 
-    /// Returns the current size of this Terminal.
-    /// Edge Case for systems with `usize` < `u16`:
-    /// * A `Size` representing the terminal size. Any coordinate `z` truncated to `usize` if `usize` < `z` < `u16`
     pub fn size() -> Result<Size, Error> {
         let (width_u16, height_u16) = size()?;
-        // clippy::as_conversions: See doc above
         #[allow(clippy::as_conversions)]
         let height = height_u16 as usize;
-        // clippy::as_conversions: See doc above
         #[allow(clippy::as_conversions)]
         let width = width_u16 as usize;
         Ok(Size { height, width })

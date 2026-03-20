@@ -95,7 +95,7 @@ impl Editor {
     fn refresh_screen(&mut self) {
         Terminal::hide_caret();
         let _ = self.view.render();
-        let _ = Terminal::move_caret_to(self.view.get_postion());
+        let _ = Terminal::move_caret_to(self.view.text_location_to_position());
         Terminal::show_caret();
         Terminal::execute();
     }

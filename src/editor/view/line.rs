@@ -28,6 +28,7 @@ impl TryFrom<usize> for GraphemeWidth {
     }
 }
 
+#[allow(dead_code)]
 struct TextFragment {
     string: String,
     rendered_width: GraphemeWidth,
@@ -71,23 +72,8 @@ impl Line {
         graphemes.iter().map(|x| x.string.clone()).collect()
     }
 
-    pub fn len(&self) -> usize {
+    pub fn length(&self) -> usize {
         self.fragments.len()
-    }
-    // Can probably implement a function for grapheme as an attribute called usize_width
-    // that does this stupid matching for me but I won't do until I have to implement this a third
-    // time.
-    pub fn get_width_of_range(&self, start: usize, end: usize) -> usize {
-        let fragments = &self.fragments;
-        let fragments = fragments.get(start..end).unwrap_or_default();
-
-        fragments
-            .iter()
-            .map(|fragment| match fragment.rendered_width {
-                GraphemeWidth::Half => 1,
-                GraphemeWidth::Full => 2,
-            })
-            .sum()
     }
 
     pub fn width_until(&self, grapheme_index: usize) -> usize {
