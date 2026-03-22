@@ -104,7 +104,6 @@ impl Editor {
 impl Drop for Editor {
     fn drop(&mut self) {
         let _ = Terminal::terminate();
-        let _ = Terminal::clear_screen();
         if self.should_quit {
             Terminal::print("Goodbye, \r\n");
         }

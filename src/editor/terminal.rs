@@ -35,12 +35,7 @@ impl Terminal {
     pub fn initialize() -> Result<(), Error> {
         enable_raw_mode()?;
         Self::enter_alternate_screen();
-        Self::clear_screen()?;
         Self::execute();
-        Ok(())
-    }
-    pub fn clear_screen() -> Result<(), Error> {
-        Self::queue_command(Clear(ClearType::All));
         Ok(())
     }
     pub fn clear_line() -> Result<(), Error> {

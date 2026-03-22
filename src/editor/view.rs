@@ -39,8 +39,11 @@ impl View {
 
     pub fn text_location_to_position(&self) -> Position {
         let row = self.location.line_index;
-        let line = self.buffer.lines.get(row).unwrap();
-        let text_width = line.width_until(self.location.grapheme_index);
+        let text_width = self
+            .buffer
+            .lines
+            .get(row)
+            .map_or(0, |line| line.width_until(self.location.grapheme_index));
 
         Position {
             col: text_width,
@@ -106,12 +109,12 @@ impl View {
     }
 
     fn move_to_end_of_line(&mut self) {
-        let width = self
+        let end_grapheme = self
             .buffer
             .lines
-            .get(self.location.grapheme_index)
+            .get(self.location.line_index)
             .map_or(0, Line::length);
-        self.location.grapheme_index = width;
+        self.location.grapheme_index = end_grapheme;
     }
 
     fn move_to_start_of_line(&mut self) {
@@ -123,6 +126,7 @@ impl View {
         line_index = line_index.saturating_sub(distance);
         self.location.line_index = line_index;
         self.snap_to_valid_grapheme();
+        self.snap_to_valid_line();
     }
 
     fn move_down(&mut self, distance: usize) {
@@ -133,12 +137,12 @@ impl View {
     }
 
     fn move_left(&mut self, distance: usize) {
-        let width = &self.location.grapheme_index;
+        let grapheme_index = self.location.grapheme_index;
         let mut x = distance;
-        if *width < distance {
-            x = x.saturating_sub(*width);
+        if grapheme_index < distance {
             self.move_up(1);
             self.move_to_end_of_line();
+            x = x.saturating_sub(grapheme_index + 1);
         }
         self.location.grapheme_index = self.location.grapheme_index.saturating_sub(x);
         self.snap_to_valid_grapheme();
@@ -153,11 +157,11 @@ impl View {
 
         let line_size = self.buffer.lines.get(line_index).map_or(0, Line::length);
 
-        if grapheme_index > line_size {
+        if grapheme_index >= line_size {
             self.move_to_start_of_line();
             self.move_down(1);
         } else {
-            grapheme_index = grapheme_index.saturating_sub(distance);
+            grapheme_index = grapheme_index.saturating_add(distance);
             self.location.grapheme_index = grapheme_index;
         }
         self.snap_to_valid_grapheme();
