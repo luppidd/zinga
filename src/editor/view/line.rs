@@ -1,4 +1,4 @@
-use std::{cmp, ops::Range};
+use std::{cmp, ops::Range}; // Cool that Rust has a range type in std
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
@@ -9,10 +9,12 @@ enum GraphemeWidth {
 }
 
 impl GraphemeWidth {
-    fn get_replacement(&self) -> Option<char> {
+    // Example doesn't borrow here but we don't want to take ownership when we take this
+    // and use it in other calculations
+    const fn saturating_add(&self, other: usize) -> usize {
         match self {
-            Self::Half => Some('.'),
-            Self::Full => None,
+            GraphemeWidth::Half => other.saturating_add(1),
+            GraphemeWidth::Full => other.saturating_add(2),
         }
     }
 }
@@ -30,12 +32,64 @@ impl TryFrom<usize> for GraphemeWidth {
 
 #[allow(dead_code)]
 struct TextFragment {
-    string: String,
+    grapheme: String,
     rendered_width: GraphemeWidth,
     replacement: Option<char>,
 }
 
-impl TextFragment {}
+impl TextFragment {
+    pub fn new(fragment: &str) -> Self {
+        let unicode_width = fragment.width(); // This function comes from UnicodeWidthStr
+        let replacement = Self::replacement_for(fragment);
+        let rendered_width = match replacement {
+            Some(ch) => GraphemeWidth::try_from(ch.to_string().width()).unwrap(),
+            None => GraphemeWidth::try_from(unicode_width).unwrap(),
+        };
+
+        let grapheme = fragment.to_string(); // Convert &str to String
+
+        Self {
+            grapheme,
+            rendered_width,
+            replacement,
+        }
+    }
+
+    fn replacement_for(text: &str) -> Option<char> {
+        let unicode_width = text.width();
+        // Some review on syntax note that chars are represented using single quotations
+        // but string srae represented as double quoted characters
+        match text {
+            " " => None,
+            "\t" => Some(' '), // Replace tab with space
+
+            // Note this new pattern for match arms, this is plagiarized right from the demo
+            // Can use a guard which basically uses an if condition, the _ means we are ignoring
+            // the item that we are matching for.
+            // https://doc.rust-lang.org/rust-by-example/flow_control/match/guard.html
+            // Non-zero whitespaces we don't want to see so we replace them with boxes
+            _ if unicode_width > 0 && text.trim().is_empty() => Some('␣'),
+            _ if unicode_width == 0 => {
+                let mut chars = text.chars();
+                if let Some(ch) = chars.next() {
+                    if ch.is_control() && chars.next().is_none() {
+                        return Some('▯');
+                    }
+                }
+                Some('·')
+            }
+            _ => None,
+        }
+    }
+}
+
+impl TryFrom<&str> for TextFragment {
+    type Error = &'static str;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Ok(TextFragment::new(value))
+    }
+}
 
 #[derive(Default)]
 pub struct Line {
@@ -48,17 +102,7 @@ impl Line {
         let mut fragments = vec![];
 
         for text_fragment in graphemes {
-            let width = text_fragment.width();
-
-            let width = GraphemeWidth::try_from(width).expect("Invalid conversion of width");
-            let replacement = width.get_replacement();
-
-            let fragment = TextFragment {
-                string: text_fragment.to_string(),
-                rendered_width: width,
-                replacement,
-            };
-
+            let fragment = TextFragment::try_from(text_fragment).unwrap();
             fragments.push(fragment);
         }
         Line { fragments }
@@ -67,9 +111,47 @@ impl Line {
     pub fn get(&self, range: Range<usize>) -> String {
         let start = range.start;
         let end = cmp::min(range.end, self.fragments.len());
-        let graphemes = self.fragments.get(start..end).unwrap_or_default();
+        let fragments = self.fragments.get(start..end).unwrap_or_default();
 
-        graphemes.iter().map(|x| x.string.clone()).collect()
+        fragments.iter().map(|x| x.grapheme.clone()).collect()
+    }
+
+    pub fn get_display_graphemes(&self, range: Range<usize>) -> String {
+        if range.start >= range.end {
+            return String::new();
+        }
+
+        let mut result = String::new();
+        let mut current_position = 0;
+
+        // We now have graphemes that we aren't going to display and they will have rendered widths
+        // of 0,1, or 2. For these zero space widths we are replacing with a 1 spcae character '.'
+        //
+        for fragment in &self.fragments {
+            let fragment_end = fragment.rendered_width.saturating_add(current_position);
+
+            if current_position >= range.end {
+                // If we go past the right most bound while iterating then we exit
+                break;
+            }
+            if fragment_end > range.start {
+                if fragment_end > range.end || current_position < range.start {
+                    // This will only occur in cases where we have characters at boundaries and
+                    // they are more than 1 width in size -- in this case clip them and replace
+                    // with -
+                    //
+                    result.push('-');
+                } else if let Some(char) = fragment.replacement {
+                    // if fragment has a replacement display impl
+                    result.push(char);
+                } else {
+                    result.push_str(&fragment.grapheme);
+                }
+            }
+
+            current_position = fragment_end
+        }
+        result
     }
 
     pub fn length(&self) -> usize {
