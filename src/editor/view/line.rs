@@ -1,4 +1,4 @@
-use std::{cmp, ops::Range}; // Cool that Rust has a range type in std
+use std::ops::Range; // Cool that Rust has a range type in std
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
@@ -31,7 +31,7 @@ impl TryFrom<usize> for GraphemeWidth {
 }
 
 #[allow(dead_code)]
-struct TextFragment {
+pub struct TextFragment {
     grapheme: String,
     rendered_width: GraphemeWidth,
     replacement: Option<char>,
@@ -98,6 +98,12 @@ pub struct Line {
 
 impl Line {
     pub fn from(line_str: &str) -> Self {
+        Line {
+            fragments: Self::str_to_fragments(line_str),
+        }
+    }
+
+    pub fn str_to_fragments(line_str: &str) -> Vec<TextFragment> {
         let graphemes = line_str.graphemes(true).collect::<Vec<&str>>();
         let mut fragments = vec![];
 
@@ -105,17 +111,76 @@ impl Line {
             let fragment = TextFragment::try_from(text_fragment).unwrap();
             fragments.push(fragment);
         }
-        Line { fragments }
+        fragments
     }
 
-    pub fn get(&self, range: Range<usize>) -> String {
-        let start = range.start;
-        let end = cmp::min(range.end, self.fragments.len());
-        let fragments = self.fragments.get(start..end).unwrap_or_default();
+    pub fn insert_char(&mut self, character: char, grapheme_index: usize) {
+        let mut new_string = String::new();
 
-        fragments.iter().map(|x| x.grapheme.clone()).collect()
+        for (index, fragment) in self.fragments.iter().enumerate() {
+            if index == grapheme_index {
+                new_string.push(character);
+            }
+            new_string.push_str(&fragment.grapheme);
+        }
+        if grapheme_index >= self.fragments.len() {
+            new_string.push(character);
+        }
+
+        // We have to re-evaluate identifiable fragments in the the string everytime
+        // we have to edit the string otherwise we can run into funky scenarios where
+        // we don't render complex graphemes correctly as we are editing text
+        self.fragments = Self::str_to_fragments(&new_string)
     }
 
+    // used to manipulate text fragments in the buffer
+    pub fn get_fragments(&self, range: Range<usize>) -> String {
+        // if we are trying to get the fragment outsie of bounds return an empty string
+        if range.start >= range.end {
+            return String::new();
+        }
+
+        if range.start >= self.fragments.len() {
+            return String::new();
+        };
+
+        let mut result = String::new();
+        let mut current_position = 0;
+
+        for fragment in self.fragments.iter() {
+            if current_position > range.end {
+                break;
+            }
+
+            if current_position >= range.start {
+                result.push_str(&fragment.grapheme);
+            }
+
+            current_position = current_position.saturating_add(1);
+        }
+
+        result
+    }
+
+    pub fn delete_char(&mut self, grapheme_index: usize) {
+        // Invariant here, I don't want to create a new vec or nothing
+        // Plus I'll let view move the char left anyways
+        if grapheme_index > self.fragments.len() {
+            return;
+        }
+
+        let mut new_string = String::new();
+
+        for (index, fragment) in self.fragments.iter().enumerate() {
+            if index == grapheme_index {
+                continue; //skip the current character
+            }
+            new_string.push_str(&fragment.grapheme);
+        }
+        self.fragments = Self::str_to_fragments(&new_string)
+    }
+
+    // used in the display of the editor
     pub fn get_display_graphemes(&self, range: Range<usize>) -> String {
         if range.start >= range.end {
             return String::new();
@@ -154,7 +219,7 @@ impl Line {
         result
     }
 
-    pub fn length(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.fragments.len()
     }
 

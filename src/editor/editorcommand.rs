@@ -16,6 +16,13 @@ pub enum Direction {
 pub enum EditorCommand {
     Move(Direction),
     Resize(Size),
+    Insert(char),
+    // Implement Enter before Delete, basically an implementation where multiple Lines are modified
+    // by the buffer.
+    // Think about the methods that need to be implemented here.
+    Enter,
+    Delete,
+    Backspace,
     Quit,
 }
 
@@ -29,6 +36,12 @@ impl TryFrom<Event> for EditorCommand {
                 code, modifiers, ..
             }) => match (code, modifiers) {
                 (KeyCode::Char('q'), KeyModifiers::CONTROL) => Ok(Self::Quit),
+                (KeyCode::Char(character), KeyModifiers::NONE | KeyModifiers::SHIFT) => {
+                    Ok(Self::Insert(character))
+                }
+                (KeyCode::Enter, _) => Ok(Self::Enter),
+                (KeyCode::Backspace, _) => Ok(Self::Backspace),
+                (KeyCode::Delete, _) => Ok(Self::Delete),
                 (KeyCode::Up, _) => Ok(Self::Move(Direction::Up)),
                 (KeyCode::Left, _) => Ok(Self::Move(Direction::Left)),
                 (KeyCode::Right, _) => Ok(Self::Move(Direction::Right)),
@@ -37,6 +50,7 @@ impl TryFrom<Event> for EditorCommand {
                 (KeyCode::PageDown, _) => Ok(Self::Move(Direction::PageDown)),
                 (KeyCode::End, _) => Ok(Self::Move(Direction::End)),
                 (KeyCode::Home, _) => Ok(Self::Move(Direction::Home)),
+
                 _ => Err(format!("Key Code not supported: {code:?}")),
             },
             Event::FocusGained => Err(format!("FocusGained not supported")),

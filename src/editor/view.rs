@@ -33,6 +33,21 @@ impl View {
         match command {
             EditorCommand::Move(direction) => self.move_caret(&direction),
             EditorCommand::Resize(size) => self.resize(size),
+            EditorCommand::Insert(character) => {
+                self.insert_chart(character);
+                self.move_caret(&Direction::Right);
+            }
+            EditorCommand::Enter => {
+                self.insert_newline();
+                self.move_caret(&Direction::Down);
+            }
+            EditorCommand::Backspace => {
+                self.delete_fragment();
+                self.move_caret(&Direction::Left);
+            }
+            EditorCommand::Delete => {
+                self.delete_fragment();
+            }
             EditorCommand::Quit => {}
         }
     }
@@ -55,7 +70,7 @@ impl View {
         let col = self.location.grapheme_index;
         let line = self.buffer.lines.get(self.location.line_index);
         self.location.grapheme_index = match line {
-            Some(x) => min(x.length(), col),
+            Some(x) => min(x.len(), col),
             None => 0,
         }
     }
@@ -69,7 +84,7 @@ impl View {
     }
 
     pub fn load(&mut self, file_name: &str) {
-        if let Ok(buffer) = Buffer::load(file_name) {
+        if let Ok(buffer) = Buffer::load_file(file_name) {
             self.buffer = buffer;
             self.needs_redraw = true;
         }
@@ -113,7 +128,7 @@ impl View {
             .buffer
             .lines
             .get(self.location.line_index)
-            .map_or(0, Line::length);
+            .map_or(0, Line::len);
         self.location.grapheme_index = end_grapheme;
     }
 
@@ -155,7 +170,7 @@ impl View {
             line_index,
         } = self.location;
 
-        let line_size = self.buffer.lines.get(line_index).map_or(0, Line::length);
+        let line_size = self.buffer.lines.get(line_index).map_or(0, Line::len);
 
         if grapheme_index >= line_size {
             self.move_to_start_of_line();
@@ -216,6 +231,36 @@ impl View {
         let mut full_message = format!("~{}{}", " ".repeat(padding), welcome_message);
         full_message.truncate(width);
         full_message
+    }
+
+    // Start actual text editing
+    fn insert_chart(&mut self, character: char) {
+        // Insert character
+        //
+        self.buffer.insert_char(
+            character,
+            self.location.line_index,
+            self.location.grapheme_index,
+        );
+
+        self.needs_redraw = true;
+    }
+
+    fn insert_newline(&mut self) {
+        self.buffer
+            .insert_line(self.location.line_index, self.location.grapheme_index);
+        self.needs_redraw = true;
+    }
+
+    fn delete_fragment(&mut self) {
+        // Delete one character don't move caret
+        // Can be combined with move commands to emulate backspace or delete.
+        // by default delete character we are currently on. If backspace delete previous character
+        // and then move backwards.
+        //
+        self.buffer
+            .delete_char(self.location.line_index, self.location.grapheme_index);
+        self.needs_redraw = true;
     }
 }
 
