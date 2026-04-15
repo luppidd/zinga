@@ -92,4 +92,5 @@ impl Buffer {
             line.delete_char(grapheme_index);
         }
     }
+
 }

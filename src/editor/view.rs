@@ -1,5 +1,5 @@
-use std::cmp::min;
 
+use std::cmp::min;
 use super::{
     editorcommand::{Direction, EditorCommand},
     terminal::{Position, Size, Terminal},
@@ -42,8 +42,8 @@ impl View {
                 self.move_caret(&Direction::Down);
             }
             EditorCommand::Backspace => {
-                self.delete_fragment();
                 self.move_caret(&Direction::Left);
+                self.delete_fragment();
             }
             EditorCommand::Delete => {
                 self.delete_fragment();
@@ -129,7 +129,7 @@ impl View {
             .lines
             .get(self.location.line_index)
             .map_or(0, Line::len);
-        self.location.grapheme_index = end_grapheme;
+        self.location.grapheme_index = end_grapheme.saturating_sub(1);
     }
 
     fn move_to_start_of_line(&mut self) {
