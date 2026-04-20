@@ -102,6 +102,16 @@ impl Line {
             fragments: Self::str_to_fragments(line_str),
         }
     }
+    
+    // Takes self consumes other
+    pub fn append_other(&mut self, other: Self){
+        // Takes other and appends
+        let mut fragments = self.fragments();
+        fragments.push_str(&other.fragments());
+
+        self.fragments = Self::str_to_fragments(&fragments);
+        
+    }
 
     pub fn str_to_fragments(line_str: &str) -> Vec<TextFragment> {
         let graphemes = line_str.graphemes(true).collect::<Vec<&str>>();
@@ -159,6 +169,17 @@ impl Line {
             current_position = current_position.saturating_add(1);
         }
 
+        result
+    }
+    
+    // returns all fragments easily.
+    // TODO: Find out if rust supports attributes
+    pub fn fragments(&self) -> String {
+        let mut result = String::new();
+        
+        for fragment in self.fragments.iter() {
+            result.push_str(&fragment.grapheme);
+        }
         result
     }
 

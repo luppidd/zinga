@@ -62,11 +62,9 @@ impl Buffer {
                 return;
             }
 
-            // TODO: Replace current line with new line with modified left string
             let left_string = line.get_fragments(0..grapheme_index);
             let left = Line::from(&left_string);
 
-            // TODO: Add new line with text of right string
 
             let right_string = line.get_fragments(grapheme_index..line_end_index);
             let right = Line::from(&right_string);
@@ -77,20 +75,24 @@ impl Buffer {
     }
 
     pub fn delete_char(&mut self, line_index: usize, grapheme_index: usize) {
-        if let None = self.lines.get_mut(line_index) {
-            return;
-        }
-        // here I want to get the Line and delete the characterfrom the string at the position
-        // identified.
-        if let Some(line) = self.lines.get_mut(line_index) {
-            let line_end_index = line.len().saturating_sub(1);
-
-            if grapheme_index > line_end_index {
-                // Early return if out of bounds - do nothing
-                return;
+        // Guard condition
+        //
+        if let None = self.lines.get(line_index){
+            return
+        } else if let Some(line) = self.lines.get(line_index){
+            // There's always a next line in this case and I can't do something like some next line 
+            // because I need to take ownership via remove. Can't use get mut for that same reason.
+            // IE I need to get mut lines and remove the next line and append the current line
+            // independently.
+            if grapheme_index >= line.len() && self.lines.len() > line_index.saturating_add(1){
+                let next_line = self.lines.remove(line_index.saturating_add(1));
+                let current_line = self.lines.get_mut(line_index).expect("Attemped to delete from a line out of bounds");
+                current_line.append_other(next_line);
+            } else if line.len() > grapheme_index {
+                self.lines.get_mut(line_index).expect("Attemped to delete from a line out of bounds").delete_char(grapheme_index);
             }
-            line.delete_char(grapheme_index);
         }
+
     }
 
 }
