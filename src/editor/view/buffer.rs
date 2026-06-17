@@ -84,12 +84,23 @@ impl Buffer {
             // because I need to take ownership via remove. Can't use get mut for that same reason.
             // IE I need to get mut lines and remove the next line and append the current line
             // independently.
+            //
+            // I guess the question here is isn't this repetition and an anti pattern of dry?
+            // well maybe I don't need to abstract everything away and if I can repeat myself a
+            // little and avoid race conditions at the same time then whatever.
             if grapheme_index >= line.len() && self.lines.len() > line_index.saturating_add(1){
-                let next_line = self.lines.remove(line_index.saturating_add(1));
-                let current_line = self.lines.get_mut(line_index).expect("Attemped to delete from a line out of bounds");
+                let next_line = self.lines
+                    .remove(line_index
+                        .saturating_add(1));
+                let current_line = self.lines
+                    .get_mut(line_index)
+                    .expect("Attemped to delete from a line out of bounds");
                 current_line.append_other(next_line);
             } else if line.len() > grapheme_index {
-                self.lines.get_mut(line_index).expect("Attemped to delete from a line out of bounds").delete_char(grapheme_index);
+                self.lines
+                    .get_mut(line_index)
+                    .expect("Attemped to delete from a line out of bounds")
+                    .delete_char(grapheme_index);
             }
         }
 
