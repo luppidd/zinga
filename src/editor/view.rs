@@ -1,9 +1,8 @@
-
-use std::cmp::min;
 use super::{
     editorcommand::{Direction, EditorCommand},
     terminal::{Position, Size, Terminal},
 };
+use std::cmp::min;
 use std::io::Error;
 
 mod buffer;
@@ -48,7 +47,8 @@ impl View {
             EditorCommand::Delete => {
                 self.delete_fragment();
             }
-            EditorCommand::Quit => {}
+            EditorCommand::Quit => (),
+            EditorCommand::Save => self.buffer.save_file(None).unwrap(),
         }
     }
 

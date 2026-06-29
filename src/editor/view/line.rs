@@ -1,4 +1,15 @@
 use std::ops::Range; // Cool that Rust has a range type in std
+                     // Traits need to be defined before we can start using them
+                     // Luckily for use these are already defined in std.
+                     // I wonder if for low level stuff or embedded we would have to implement our own traits to use
+                     // them.
+                     // define some trait - still not really sure what type Err does at the top of the function
+                     // pub trait FromStr {
+                     //  type Err;
+                     //  fn from_str(s: &str) => Result<Self, Self::Err>;
+                     // }
+use std::fmt;
+use std::str::FromStr;
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
@@ -9,8 +20,6 @@ enum GraphemeWidth {
 }
 
 impl GraphemeWidth {
-    // Example doesn't borrow here but we don't want to take ownership when we take this
-    // and use it in other calculations
     const fn saturating_add(&self, other: usize) -> usize {
         match self {
             GraphemeWidth::Half => other.saturating_add(1),
@@ -96,21 +105,61 @@ pub struct Line {
     fragments: Vec<TextFragment>,
 }
 
-impl Line {
-    pub fn from(line_str: &str) -> Self {
-        Line {
-            fragments: Self::str_to_fragments(line_str),
-        }
+impl fmt::Display for Line {
+    // This is the first example of a formatter trait iimplementation.
+    // The fmt fn is required.
+    //
+    // fmt takes the line and a formatter. In rust we don't need to construct the formatter
+    // directly https://doc.rust-lang.org/std/fmt/struct.Formatter.html
+    // instead we can add the mutable reference in the fmt method of formatting traits.
+    // This allows us to interact with Formatter from std and we can direct what formatter
+    // displays. I don't really understand what's happening underneath the hood here but I'll
+    // get there.
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        // Iterator just accesses each of the fragments and clones the String 'grapheme'
+        // and collects it.
+        let result: String = self
+            .fragments
+            .iter()
+            .map(|fragment| fragment.grapheme.clone())
+            .collect();
+        write!(formatter, "{result}")
     }
-    
+}
+
+impl TryFrom<&str> for Line {
+    type Error = &'static str;
+
+    fn try_from(string: &str) -> Result<Self, Self::Error> {
+        Ok(Line {
+            fragments: Self::str_to_fragments(string),
+        })
+    }
+}
+
+impl TryFrom<String> for Line {
+    type Error = &'static String;
+
+    fn try_from(string: String) -> Result<Self, Self::Error> {
+        Ok(Line {
+            fragments: Self::str_to_fragments(string.as_str()),
+        })
+    }
+}
+
+// I wonder if I can implement FromString instead of this if it's just something that's often
+// a trait.
+//
+//
+//
+impl Line {
     // Takes self consumes other
-    pub fn append_other(&mut self, other: Self){
+    pub fn append_other(&mut self, other: Self) {
         // Takes other and appends
-        let mut fragments = self.fragments();
-        fragments.push_str(&other.fragments());
+        let mut fragments = self.to_string();
+        fragments.push_str(&other.to_string());
 
         self.fragments = Self::str_to_fragments(&fragments);
-        
     }
 
     pub fn str_to_fragments(line_str: &str) -> Vec<TextFragment> {
@@ -169,17 +218,6 @@ impl Line {
             current_position = current_position.saturating_add(1);
         }
 
-        result
-    }
-    
-    // returns all fragments easily.
-    // TODO: Find out if rust supports attributes
-    pub fn fragments(&self) -> String {
-        let mut result = String::new();
-        
-        for fragment in self.fragments.iter() {
-            result.push_str(&fragment.grapheme);
-        }
         result
     }
 

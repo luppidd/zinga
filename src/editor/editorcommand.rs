@@ -24,6 +24,7 @@ pub enum EditorCommand {
     Delete,
     Backspace,
     Quit,
+    Save,
 }
 
 // We're basically converting Events into editor commands here
@@ -50,6 +51,7 @@ impl TryFrom<Event> for EditorCommand {
                 (KeyCode::PageDown, _) => Ok(Self::Move(Direction::PageDown)),
                 (KeyCode::End, _) => Ok(Self::Move(Direction::End)),
                 (KeyCode::Home, _) => Ok(Self::Move(Direction::Home)),
+                (KeyCode::Char('z'), KeyModifiers::CONTROL) => Ok(Self::Save),
 
                 _ => Err(format!("Key Code not supported: {code:?}")),
             },

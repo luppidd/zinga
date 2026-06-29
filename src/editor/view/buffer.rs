@@ -1,10 +1,14 @@
 use std::fs::read_to_string;
-use std::io::Error;
+use std::io::{Error, ErrorKind};
+
+use std::fs::File;
+use std::io::Write;
 
 use super::line::Line;
 
 #[derive(Default)]
 pub struct Buffer {
+    pub file_name: Option<String>,
     pub lines: Vec<Line>,
 }
 
@@ -13,9 +17,39 @@ impl Buffer {
         let contents = read_to_string(file_name)?;
         let mut lines = Vec::new();
         for value in contents.lines() {
-            lines.push(Line::from(value));
+            lines.push(Line::try_from(value).unwrap());
         }
-        Ok(Self { lines })
+        Ok(Self {
+            file_name: Some(file_name.to_string()),
+            lines,
+        })
+    }
+
+    pub fn save_file(&self, file_name: Option<String>) -> Result<(), Error> {
+        // Fixed bug when using unwrap_or. you can't use Unwrap or becasue it returns a default
+        // value.
+        // Instead we should be using ok_or_else
+        // Also need to use clone on file_name since I can't take ownership of file_name from self.
+        // unwrap or expects a default of the same type as the contents of the option.
+        // You can't pass an error to it as the default.
+        // I want to return an error if there is no default. So in this case we need to use ok or
+        // or ok or else.
+        //
+        let file_name = match file_name{
+            Some(name) => name,
+            None => self.file_name.clone().ok_or_else( || {
+                Error::new(
+                    ErrorKind::InvalidInput,
+                    "Cannot save file - no filename passsed and no filename associated with the current buffer".to_string()
+                    )
+            })?
+        };
+        let mut file = File::create(file_name)?;
+
+        for line in &self.lines {
+            writeln!(file, "{line}")?;
+        }
+        Ok(())
     }
 
     pub fn is_empty(&self) -> bool {
@@ -63,24 +97,24 @@ impl Buffer {
             }
 
             let left_string = line.get_fragments(0..grapheme_index);
-            let left = Line::from(&left_string);
-
+            let left = Line::try_from(left_string).unwrap();
 
             let right_string = line.get_fragments(grapheme_index..line_end_index);
-            let right = Line::from(&right_string);
+            let right = Line::try_from(right_string).unwrap();
 
             self.lines[line_index] = left;
             self.lines.insert(line_index.saturating_add(1), right);
         }
     }
 
+    // Delete Char was hard...
     pub fn delete_char(&mut self, line_index: usize, grapheme_index: usize) {
         // Guard condition
         //
-        if let None = self.lines.get(line_index){
-            return
-        } else if let Some(line) = self.lines.get(line_index){
-            // There's always a next line in this case and I can't do something like some next line 
+        if let None = self.lines.get(line_index) {
+            return;
+        } else if let Some(line) = self.lines.get(line_index) {
+            // There's always a next line in this case and I can't do something like some next line
             // because I need to take ownership via remove. Can't use get mut for that same reason.
             // IE I need to get mut lines and remove the next line and append the current line
             // independently.
@@ -88,11 +122,10 @@ impl Buffer {
             // I guess the question here is isn't this repetition and an anti pattern of dry?
             // well maybe I don't need to abstract everything away and if I can repeat myself a
             // little and avoid race conditions at the same time then whatever.
-            if grapheme_index >= line.len() && self.lines.len() > line_index.saturating_add(1){
-                let next_line = self.lines
-                    .remove(line_index
-                        .saturating_add(1));
-                let current_line = self.lines
+            if grapheme_index >= line.len() && self.lines.len() > line_index.saturating_add(1) {
+                let next_line = self.lines.remove(line_index.saturating_add(1));
+                let current_line = self
+                    .lines
                     .get_mut(line_index)
                     .expect("Attemped to delete from a line out of bounds");
                 current_line.append_other(next_line);
@@ -103,7 +136,5 @@ impl Buffer {
                     .delete_char(grapheme_index);
             }
         }
-
     }
-
 }
