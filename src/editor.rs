@@ -6,7 +6,9 @@ use std::{
     panic::{set_hook, take_hook},
 };
 
+mod documentstatus;
 mod editorcommand;
+mod statusbar;
 mod terminal;
 mod view;
 

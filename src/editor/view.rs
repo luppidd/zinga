@@ -1,12 +1,15 @@
 use super::{
+    documentstatus::DocumentStatus,
     editorcommand::{Direction, EditorCommand},
     terminal::{Position, Size, Terminal},
 };
+
 use std::cmp::min;
-use std::io::Error;
+use std::io::{Error, ErrorKind};
 
 mod buffer;
 mod line;
+
 use buffer::Buffer;
 use line::Line;
 
@@ -20,6 +23,7 @@ pub struct Location {
 }
 
 pub struct View {
+    document_status: DocumentStatus,
     buffer: Buffer,
     needs_redraw: bool,
     size: Size,
@@ -28,6 +32,32 @@ pub struct View {
 }
 
 impl View {
+    // File commands
+    fn save_file(&self, file_name: Option<String>) -> Result<(), Error> {
+        let file_name = match file_name {
+            Some(name) => name,
+            None => self.document_status.file_name.clone().ok_or_else(|| {
+                Error::new(
+                    ErrorKind::InvalidInput,
+                    "Cannot save file - no filename passsed and no filename associated with the current buffer".to_string()
+                    )
+            })?
+        };
+
+        self.buffer.save_file(file_name);
+        Ok(())
+    }
+
+    pub fn load(&mut self, file_name: &str) {
+        if let Ok(buffer) = Buffer::load_file(file_name) {
+            self.buffer = buffer;
+            self.needs_redraw = true;
+            self.document_status.file_name = Some(file_name.to_string());
+        }
+    }
+
+    // End File Commands
+
     pub fn handle_command(&mut self, command: EditorCommand) {
         match command {
             EditorCommand::Move(direction) => self.move_caret(&direction),
@@ -48,7 +78,7 @@ impl View {
                 self.delete_fragment();
             }
             EditorCommand::Quit => (),
-            EditorCommand::Save => self.buffer.save_file(None).unwrap(),
+            EditorCommand::Save => self.save_file(None).unwrap(),
         }
     }
 
@@ -79,50 +109,11 @@ impl View {
         self.location.line_index = min(self.location.line_index, self.buffer.lines.len())
     }
 
-    fn render_line(at: usize, line_text: &str) {
-        Terminal::print_row(at, line_text);
-    }
-
-    pub fn load(&mut self, file_name: &str) {
-        if let Ok(buffer) = Buffer::load_file(file_name) {
-            self.buffer = buffer;
-            self.needs_redraw = true;
-        }
-    }
-
     pub fn resize(&mut self, to: Size) {
         self.size = to;
         self.scroll_view_location();
         self.needs_redraw = true;
     }
-
-    pub fn render(&mut self) -> Result<(), Error> {
-        if !self.needs_redraw {
-            return Ok(());
-        }
-        let Size { height, width } = self.size;
-        if height == 0 || width == 0 {
-            return Ok(());
-        }
-        #[allow(clippy::integer_division)]
-        let vertical_center = height / 3;
-        let top = self.scroll_offset.row;
-
-        for current_row in 0..height {
-            if let Some(line) = self.buffer.lines.get(current_row.saturating_add(top)) {
-                let left = self.scroll_offset.col;
-                let right = self.scroll_offset.col.saturating_add(width);
-                Self::render_line(current_row, &line.get_display_graphemes(left..right));
-            } else if current_row == vertical_center && self.buffer.is_empty() {
-                Self::render_line(current_row, &Self::build_welcome_message(width));
-            } else {
-                Self::render_line(current_row, "~");
-            }
-        }
-        self.needs_redraw = false;
-        Ok(())
-    }
-
     fn move_to_end_of_line(&mut self) {
         let end_grapheme = self
             .buffer
@@ -214,26 +205,7 @@ impl View {
         self.needs_redraw = offset_changed || self.needs_redraw;
     }
 
-    fn build_welcome_message(width: usize) -> String {
-        if width == 0 {
-            return " ".to_string();
-        }
-        let welcome_message = format!("{NAME} editor -- version {VERSION}");
-        let len = welcome_message.len();
-        if width <= len {
-            return "~".to_string();
-        }
-        // we allow this since we don't care if our welcome message is put _exactly_ in the middle.
-        // it's allowed to be a bit to the left or right.
-        #[allow(clippy::integer_division)]
-        let padding = (width.saturating_sub(len).saturating_sub(1)) / 2;
-
-        let mut full_message = format!("~{}{}", " ".repeat(padding), welcome_message);
-        full_message.truncate(width);
-        full_message
-    }
-
-    // Start actual text editing
+    // Start text editing
     fn insert_chart(&mut self, character: char) {
         // Insert character
         //
@@ -253,20 +225,68 @@ impl View {
     }
 
     fn delete_fragment(&mut self) {
-        // Delete one character don't move caret
-        // Can be combined with move commands to emulate backspace or delete.
-        // by default delete character we are currently on. If backspace delete previous character
-        // and then move backwards.
-        //
         self.buffer
             .delete_char(self.location.line_index, self.location.grapheme_index);
         self.needs_redraw = true;
+    }
+
+    // Rendering logic starts here
+    fn render_line(at: usize, line_text: &str) {
+        Terminal::print_row(at, line_text);
+    }
+
+    pub fn render(&mut self) -> Result<(), Error> {
+        if !self.needs_redraw {
+            return Ok(());
+        }
+        let Size { height, width } = self.size;
+        if height == 0 || width == 0 {
+            return Ok(());
+        }
+        #[allow(clippy::integer_division)]
+        let vertical_center = height / 3;
+        let top = self.scroll_offset.row;
+
+        for current_row in 0..height {
+            if let Some(line) = self.buffer.lines.get(current_row.saturating_add(top)) {
+                let left = self.scroll_offset.col;
+                let right = self.scroll_offset.col.saturating_add(width);
+                Self::render_line(current_row, &line.get_display_graphemes(left..right));
+            } else if current_row == vertical_center && self.buffer.is_empty() {
+                Self::render_line(current_row, &Self::build_welcome_message(width));
+            } else {
+                Self::render_line(current_row, "~");
+            }
+        }
+        self.needs_redraw = false;
+        // Add status bar rendering in the view
+        Ok(())
+    }
+
+    fn build_welcome_message(width: usize) -> String {
+        if width == 0 {
+            return " ".to_string();
+        }
+        let welcome_message = format!("{NAME} editor -- version {VERSION}");
+        let len = welcome_message.len();
+        if width <= len {
+            return "~".to_string();
+        }
+        // we allow this since we don't care if our welcome message is put _exactly_ in the middle.
+        // it's allowed to be a bit to the left or right.
+        #[allow(clippy::integer_division)]
+        let padding = (width.saturating_sub(len).saturating_sub(1)) / 2;
+
+        let mut full_message = format!("~{}{}", " ".repeat(padding), welcome_message);
+        full_message.truncate(width);
+        full_message
     }
 }
 
 impl Default for View {
     fn default() -> Self {
         Self {
+            document_status: DocumentStatus::default(),
             buffer: Buffer::default(),
             needs_redraw: true,
             size: Terminal::size().unwrap_or_default(),

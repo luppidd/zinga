@@ -17,6 +17,7 @@ pub struct Position {
     pub col: usize,
     pub row: usize,
 }
+
 /// Represents the Terminal.
 /// Edge Case for platforms where `usize` < `u16`:
 /// Regardless of the actual size of the Terminal, this representation
@@ -78,8 +79,9 @@ impl Terminal {
 
     pub fn size() -> Result<Size, Error> {
         let (width_u16, height_u16) = size()?;
+        // Leave space at the bottom of two rows for use with other structs
         #[allow(clippy::as_conversions)]
-        let height = height_u16 as usize;
+        let height = height_u16.saturating_sub(2) as usize;
         #[allow(clippy::as_conversions)]
         let width = width_u16 as usize;
         Ok(Size { height, width })

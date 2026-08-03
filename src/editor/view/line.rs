@@ -9,7 +9,6 @@ use std::ops::Range; // Cool that Rust has a range type in std
                      //  fn from_str(s: &str) => Result<Self, Self::Err>;
                      // }
 use std::fmt;
-use std::str::FromStr;
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 

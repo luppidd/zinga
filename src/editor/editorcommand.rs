@@ -17,9 +17,6 @@ pub enum EditorCommand {
     Move(Direction),
     Resize(Size),
     Insert(char),
-    // Implement Enter before Delete, basically an implementation where multiple Lines are modified
-    // by the buffer.
-    // Think about the methods that need to be implemented here.
     Enter,
     Delete,
     Backspace,

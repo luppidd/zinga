@@ -1,5 +1,5 @@
 use std::fs::read_to_string;
-use std::io::{Error, ErrorKind};
+use std::io::Error;
 
 use std::fs::File;
 use std::io::Write;
@@ -8,8 +8,8 @@ use super::line::Line;
 
 #[derive(Default)]
 pub struct Buffer {
-    pub file_name: Option<String>,
     pub lines: Vec<Line>,
+    pub modified: bool,
 }
 
 impl Buffer {
@@ -20,32 +20,13 @@ impl Buffer {
             lines.push(Line::try_from(value).unwrap());
         }
         Ok(Self {
-            file_name: Some(file_name.to_string()),
-            lines,
+            lines: lines,
+            modified: false,
         })
     }
 
-    pub fn save_file(&self, file_name: Option<String>) -> Result<(), Error> {
-        // Fixed bug when using unwrap_or. you can't use Unwrap or becasue it returns a default
-        // value.
-        // Instead we should be using ok_or_else
-        // Also need to use clone on file_name since I can't take ownership of file_name from self.
-        // unwrap or expects a default of the same type as the contents of the option.
-        // You can't pass an error to it as the default.
-        // I want to return an error if there is no default. So in this case we need to use ok or
-        // or ok or else.
-        //
-        let file_name = match file_name{
-            Some(name) => name,
-            None => self.file_name.clone().ok_or_else( || {
-                Error::new(
-                    ErrorKind::InvalidInput,
-                    "Cannot save file - no filename passsed and no filename associated with the current buffer".to_string()
-                    )
-            })?
-        };
+    pub fn save_file(&self, file_name: String) -> Result<(), Error> {
         let mut file = File::create(file_name)?;
-
         for line in &self.lines {
             writeln!(file, "{line}")?;
         }
@@ -53,20 +34,10 @@ impl Buffer {
     }
 
     pub fn is_empty(&self) -> bool {
-        // Vec has a builtin is_empty
         self.lines.is_empty()
     }
 
-    // The tutorial just used the Location structs instead of individual line_index, grapheme_index
-    // parameters,
-    //
-    // not a big deal can refactor later.
     pub fn insert_char(&mut self, character: char, line_index: usize, grapheme_index: usize) {
-        // if statements that contain let Some can have different conditions in the
-        // other conditional arms that are not related to the option in the let statements
-        // I first understood that if with let Some(T) conditions need to be tied to Options or
-        // enums
-
         if let Some(line) = self.lines.get_mut(line_index) {
             line.insert_char(character, grapheme_index)
         } else if line_index == self.lines.len() {
@@ -74,12 +45,10 @@ impl Buffer {
             line.insert_char(character, 0);
             self.lines.push(line)
         }
+        self.modified = true;
     }
 
-    // Inserts a line at line_index keeping fragments left of grapheme index in current line
-    // and taking the fragments from the right inserting them into a new line
     pub fn insert_line(&mut self, line_index: usize, grapheme_index: usize) {
-        // First boundary condition = early return
         if line_index >= self.lines.len() {
             let line = Line::default();
             self.lines.push(line);
@@ -89,8 +58,6 @@ impl Buffer {
         if let Some(line) = self.lines.get(line_index) {
             let line_end_index = line.len().saturating_sub(1);
             if grapheme_index > line.len() {
-                //Second boundary condition where the index passed is greater than the length of
-                //the line we just insert a new empty line in the next line index position
                 self.lines
                     .insert(line_index.saturating_add(1), Line::default());
                 return;
@@ -105,23 +72,14 @@ impl Buffer {
             self.lines[line_index] = left;
             self.lines.insert(line_index.saturating_add(1), right);
         }
+        self.modified = true;
     }
 
-    // Delete Char was hard...
     pub fn delete_char(&mut self, line_index: usize, grapheme_index: usize) {
         // Guard condition
-        //
         if let None = self.lines.get(line_index) {
             return;
         } else if let Some(line) = self.lines.get(line_index) {
-            // There's always a next line in this case and I can't do something like some next line
-            // because I need to take ownership via remove. Can't use get mut for that same reason.
-            // IE I need to get mut lines and remove the next line and append the current line
-            // independently.
-            //
-            // I guess the question here is isn't this repetition and an anti pattern of dry?
-            // well maybe I don't need to abstract everything away and if I can repeat myself a
-            // little and avoid race conditions at the same time then whatever.
             if grapheme_index >= line.len() && self.lines.len() > line_index.saturating_add(1) {
                 let next_line = self.lines.remove(line_index.saturating_add(1));
                 let current_line = self
@@ -136,5 +94,6 @@ impl Buffer {
                     .delete_char(grapheme_index);
             }
         }
+        self.modified = true;
     }
 }
