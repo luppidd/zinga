@@ -1,7 +1,7 @@
 #[derive(Clone, Default, Debug)]
 pub struct DocumentStatus {
-    lines: usize,
-    current_line: usize,
-    is_modified: bool,
-    file_name: Option<String>,
+    pub lines: usize,
+    pub current_line: usize,
+    pub is_modified: bool,
+    pub file_name: Option<String>,
 }

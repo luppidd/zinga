@@ -1,6 +1,6 @@
-use super::{terminal, view};
+use super::{documentstatus, terminal};
+use documentstatus::DocumentStatus;
 use terminal::{Size, Terminal};
-use view::DocumentStatus;
 
 #[derive(Default)]
 pub struct StatusBar {
@@ -44,7 +44,8 @@ impl StatusBar {
         // Default method for String also available to vectors.
         // Lets user keep only the items from the beginning of the vector to the specified length
         status.truncate(self.width);
-        Terminal::print_row(self.position_y, &status);
+        let result = Terminal::print_row(self.position_y, &status);
+        debug_assert!(result.is_ok(), "Failed to render status bar");
         self.needs_redraw = false;
     }
 }

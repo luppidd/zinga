@@ -13,12 +13,14 @@ mod terminal;
 mod view;
 
 use editorcommand::EditorCommand;
+use statusbar::StatusBar;
 use terminal::{Size, Terminal};
 use view::View;
 
 pub struct Editor {
     should_quit: bool,
     view: View,
+    status_bar: StatusBar,
 }
 
 impl Editor {
@@ -30,13 +32,14 @@ impl Editor {
         }));
 
         Terminal::initialize()?;
-        let mut view = View::default();
+        let mut view = View::new(2);
         let args: Vec<String> = env::args().collect();
         if let Some(file_name) = args.get(1) {
             view.load(file_name);
         }
 
         let mut view = View::default();
+        let statusbar = StatusBar::default();
         let args: Vec<String> = env::args().collect();
         if let Some(file_name) = args.get(1) {
             view.load(file_name)
@@ -45,6 +48,7 @@ impl Editor {
         Ok(Self {
             should_quit: false,
             view,
+            status_bar: statusbar,
         })
     }
 
@@ -64,6 +68,9 @@ impl Editor {
                     }
                 }
             }
+
+            let status = self.view.get_status();
+            self.status_bar.update_status(status);
         }
     }
 
@@ -82,6 +89,9 @@ impl Editor {
                         self.should_quit = true;
                     } else {
                         self.view.handle_command(command);
+                        if let EditorCommand::Resize(size) = command {
+                            self.status_bar.resize(size);
+                        }
                     }
                 }
                 Err(err) => {
@@ -97,8 +107,9 @@ impl Editor {
     fn refresh_screen(&mut self) {
         Terminal::hide_caret();
         let _ = self.view.render();
+        let _ = self.status_bar.render();
         let _ = Terminal::move_caret_to(self.view.text_location_to_position());
-        Terminal::show_caret();
+        let _ = Terminal::show_caret();
         Terminal::execute();
     }
 }

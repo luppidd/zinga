@@ -1,5 +1,5 @@
 use std::fs::read_to_string;
-use std::io::Error;
+use std::io::{Error, ErrorKind};
 
 use std::fs::File;
 use std::io::Write;
@@ -10,6 +10,7 @@ use super::line::Line;
 pub struct Buffer {
     pub lines: Vec<Line>,
     pub modified: bool,
+    pub file_name: Option<String>,
 }
 
 impl Buffer {
@@ -22,11 +23,23 @@ impl Buffer {
         Ok(Self {
             lines: lines,
             modified: false,
+            file_name: Some(file_name.to_string()),
         })
     }
 
-    pub fn save_file(&self, file_name: String) -> Result<(), Error> {
+    pub fn save_file(&self, file_name: Option<String>) -> Result<(), Error> {
+        let file_name = match file_name {
+            Some(name) => name,
+            None => self.file_name.clone().ok_or_else(|| {
+                Error::new(
+                    ErrorKind::InvalidData,
+                    "Cannot save file - no filename passsed and no filename associated with the current buffer".to_string()
+                    )
+            })?
+        };
+
         let mut file = File::create(file_name)?;
+
         for line in &self.lines {
             writeln!(file, "{line}")?;
         }

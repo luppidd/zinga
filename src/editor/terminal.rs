@@ -71,10 +71,11 @@ impl Terminal {
         Self::queue_command(Print(string));
     }
 
-    pub fn print_row(row: usize, line_text: &str) {
+    pub fn print_row(row: usize, line_text: &str) -> Result<(), Error> {
         let _ = Self::move_caret_to(Position { col: 0, row });
         let _ = Self::clear_line();
         Self::print(line_text);
+        Ok(())
     }
 
     pub fn size() -> Result<Size, Error> {

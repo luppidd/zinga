@@ -5,7 +5,7 @@ use super::{
 };
 
 use std::cmp::min;
-use std::io::{Error, ErrorKind};
+use std::io::Error;
 
 mod buffer;
 mod line;
@@ -32,19 +32,23 @@ pub struct View {
 }
 
 impl View {
-    // File commands
-    fn save_file(&self, file_name: Option<String>) -> Result<(), Error> {
-        let file_name = match file_name {
-            Some(name) => name,
-            None => self.document_status.file_name.clone().ok_or_else(|| {
-                Error::new(
-                    ErrorKind::InvalidInput,
-                    "Cannot save file - no filename passsed and no filename associated with the current buffer".to_string()
-                    )
-            })?
-        };
+    pub fn new(bottom_margin: usize) -> Self {
+        let terminal_size = Terminal::size().unwrap_or_default();
 
-        self.buffer.save_file(file_name);
+        Self {
+            document_status: DocumentStatus::default(),
+            buffer: Buffer::default(),
+            needs_redraw: true,
+            size: Size {
+                height: terminal_size.height.saturating_sub(bottom_margin),
+                width: terminal_size.width,
+            },
+            location: Location::default(),
+            scroll_offset: Position::default(),
+        }
+    }
+    pub fn save_file(&self, file_name: Option<String>) -> Result<(), Error> {
+        let _ = self.buffer.save_file(file_name);
         Ok(())
     }
 
@@ -56,6 +60,15 @@ impl View {
         }
     }
 
+    // Start Status details
+    pub fn get_status(&self) -> DocumentStatus {
+        DocumentStatus {
+            lines: self.buffer.lines.len(),
+            current_line: self.location.line_index,
+            is_modified: self.buffer.modified,
+            file_name: self.buffer.file_name.clone(),
+        }
+    }
     // End File Commands
 
     pub fn handle_command(&mut self, command: EditorCommand) {
